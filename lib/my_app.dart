@@ -1,7 +1,8 @@
 // ignore_for_file: , prefer_const_literals_to_create_immutables, prefer_const_constructors
 
 import 'package:flutter/material.dart';
-import 'package:task_list/repositories/todo_repository.dart';
+import 'package:provider/provider.dart';
+import 'package:task_list/repositories/todo_hive_rep.dart';
 import 'package:task_list/tarefa.dart';
 import 'package:task_list/theme_controller.dart';
 import 'package:task_list/todo.dart';
@@ -20,43 +21,33 @@ class MyApp extends StatelessWidget {
         ),
         debugShowCheckedModeBanner: false,
         home: ScaffoldMessenger(
-          child: ToDoListPage(),
+          child: TodoListPage(),
         ),
       ),
     );
   }
 }
 
-class ToDoListPage extends StatefulWidget {
+class TodoListPage extends StatefulWidget {
   @override
-  State<ToDoListPage> createState() => ToDoListPageState();
+  State<TodoListPage> createState() => TodoListPageState();
 }
 
-class ToDoListPageState extends State<ToDoListPage> {
+class TodoListPageState extends State<TodoListPage> {
   final TextEditingController taskController = TextEditingController();
 
-  List<ToDo> tarefas = [];
-  List<ToDo> allDeleted = [];
-  late ToDo deleted;
+  List<Todo> tarefas = [];
+  List<Todo> allDeleted = [];
+  late Todo deleted;
   late String tarefa;
-  final TodoRepository todoRepository = TodoRepository();
   late int deletedIndex;
   bool fieldIsEmpty = false;
   String errorMessage = 'Erro - Campo vazio';
-
-  @override
-  void initState() {
-    super.initState();
-
-    todoRepository.getTodoList().then((value) {
-      setState(() {
-        tarefas = value;
-      });
-    });
-  }
+  late var rep;
 
   @override
   Widget build(BuildContext context) {
+    rep = Provider.of<HiveTodoRepository>(context);
     return Scaffold(
       appBar: AppBar(
         actions: [
@@ -98,9 +89,13 @@ class ToDoListPageState extends State<ToDoListPage> {
                       flex: 3,
                       child: TextField(
                         onSubmitted: (a) {
-                          if (tarefas.length < 20) {
-                            setTarefa();
-                          }
+                          Todo todo = Todo(
+                              tarefa: taskController.text,
+                              date: DateTime.now().toString());
+                          print(todo);
+                          print(rep.list);
+                          rep.saveTodos(todo);
+                          taskController.clear();
                         },
                         controller: taskController,
                         onChanged: (task) {
@@ -115,7 +110,7 @@ class ToDoListPageState extends State<ToDoListPage> {
                           border: OutlineInputBorder(),
                           labelText: 'Nova tarefa',
                           hintText:
-                              tarefas.isNotEmpty ? null : 'Ex: Estudar...',
+                              rep.list.isNotEmpty ? null : 'Ex: Estudar...',
                         ),
                       ),
                     ),
@@ -128,24 +123,40 @@ class ToDoListPageState extends State<ToDoListPage> {
                             59,
                           ),
                         ),
-                        onPressed: tarefas.length < 20 ? setTarefa : null,
+                        onPressed: () {
+                          if (taskController.text.isNotEmpty) {
+                            var todo = Todo(
+                                tarefa: taskController.text,
+                                date: DateTime.now().toString());
+                            rep.saveTodos(todo);
+                            taskController.clear();
+                          } else {
+                            setState(() {
+                              fieldIsEmpty = true;
+                            });
+                          }
+                        },
                         child: Icon(Icons.add),
                       ),
                     ),
                   ],
                 ),
               ),
-              Flexible(
-                child: ListView.builder(
-                  padding: EdgeInsets.only(top: 0),
-                  itemCount: tarefas.length,
-                  itemBuilder: (context, index) => TaskTile(
-                    todo: tarefas[index],
-                    deleteTask: deleteTask,
+              Consumer<HiveTodoRepository>(builder: (_, rep, __) {
+                return Flexible(
+                  child: ListView.builder(
+                    padding: EdgeInsets.only(top: 0),
+                    itemCount: rep.list.length,
+                    itemBuilder: (context, index) => TaskTile(
+                      todo: rep.list[index],
+                      deleteTask: (todo) {
+                        rep.deleteTodo(rep.list[index], context);
+                      },
+                    ),
+                    shrinkWrap: true,
                   ),
-                  shrinkWrap: true,
-                ),
-              ),
+                );
+              }),
               SizedBox(height: 2),
               Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
@@ -153,7 +164,7 @@ class ToDoListPageState extends State<ToDoListPage> {
                 children: [
                   Expanded(
                     child: Text(
-                      "Você possui ${tarefas.length} tarefas pendentes.",
+                      "Você possui ${rep.list.length} tarefas pendentes.",
                       style: TextStyle(
                         fontSize: 14,
                         color: ThemeController.instance.isDarkTheme
@@ -170,11 +181,11 @@ class ToDoListPageState extends State<ToDoListPage> {
                   Expanded(
                     flex: 11,
                     child: ElevatedButton(
-                      onPressed: deleteAll,
+                      onPressed: () {
+                        rep.list.isNotEmpty ? rep.deleteAll(context) : null;
+                      },
                       child: Text("Limpar tudo"),
-                      style: ElevatedButton.styleFrom(
-                        fixedSize: Size(25, 25),
-                      ),
+                      style: ElevatedButton.styleFrom(fixedSize: Size(25, 25)),
                     ),
                   ),
                 ],
@@ -182,87 +193,6 @@ class ToDoListPageState extends State<ToDoListPage> {
             ],
           ),
         ),
-      ),
-    );
-  }
-
-  void setTarefa() {
-    if (taskController.text.isNotEmpty) {
-      setState(() {
-        tarefa = taskController.text;
-        tarefas.add(ToDo(
-          tarefa: tarefa,
-          date: DateTime.now(),
-        ));
-        taskController.clear();
-      });
-      todoRepository.saveTodoList(tarefas);
-    } else if (!fieldIsEmpty) {
-      setState(() {
-        fieldIsEmpty = !fieldIsEmpty;
-      });
-    }
-  }
-
-  void deleteTask(ToDo tarefa) {
-    deleted = tarefa;
-    deletedIndex = tarefas.indexOf(tarefa);
-    setState(() {
-      tarefas.remove(tarefa);
-    });
-    todoRepository.saveTodoList(tarefas);
-    ScaffoldMessenger.of(context).clearSnackBars();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        duration: const Duration(seconds: 5),
-        content: Text('${tarefa.tarefa} foi removida',
-            style: TextStyle(color: Colors.black87)),
-        backgroundColor: Colors.white,
-        action: SnackBarAction(
-          label: 'Desfazer',
-          onPressed: () {
-            setState(() {
-              tarefas.insert(deletedIndex, deleted);
-            });
-            todoRepository.saveTodoList(tarefas);
-          },
-        ),
-      ),
-    );
-  }
-
-  void deleteAll() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text("Tem certeza?"),
-        content: Text("Deseja deletar todas as tarefas?"),
-        actions: [
-          TextButton(
-            child: Text(
-              "Não",
-              style: TextStyle(color: Colors.teal),
-            ),
-            onPressed: () {
-              Navigator.of(context).pop();
-            },
-          ),
-          TextButton(
-            child: Text(
-              'Sim',
-              style: TextStyle(
-                color: Colors.teal,
-              ),
-            ),
-            onPressed: () {
-              setState(() {
-                tarefas.clear();
-              });
-              Navigator.of(context).pop();
-              todoRepository.saveTodoList(tarefas);
-            },
-          )
-        ],
       ),
     );
   }

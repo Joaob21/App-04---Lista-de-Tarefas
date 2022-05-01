@@ -1,16 +1,13 @@
-class ToDo {
-  ToDo({required this.tarefa, required this.date});
+import 'package:hive/hive.dart';
+
+part 'todo.g.dart';
+
+@HiveType(typeId: 1)
+class Todo {
+  Todo({required this.tarefa, required this.date});
+  @HiveField(0)
   String tarefa;
-  DateTime date;
 
-  ToDo.fromJson(Map<String, dynamic> json)
-      : tarefa = json['title'],
-        date = DateTime.parse(json['dateTime']);
-
-  Map<String, dynamic> toJson() {
-    return {
-      'title': tarefa,
-      'dateTime': date.toIso8601String(),
-    };
-  }
+  @HiveField(1)
+  String date;
 }

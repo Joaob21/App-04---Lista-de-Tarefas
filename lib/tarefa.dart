@@ -6,8 +6,8 @@ import 'package:task_list/todo.dart';
 import 'my_app.dart';
 
 class TaskTile extends StatelessWidget {
-  ToDo todo;
-  void Function(ToDo todo) deleteTask;
+  Todo todo;
+  void Function(Todo todo) deleteTask;
   TaskTile({required this.todo, required this.deleteTask});
 
   @override
@@ -38,7 +38,7 @@ class TaskTile extends StatelessWidget {
               ),
               child: ListTile(
                 title: Text(
-                  'criado em ${DateFormat('dd/MM/yyyy - HH:mm').format(todo.date)}',
+                  'criado em ${DateFormat('dd/MM/yyyy - HH:mm').format(DateTime.parse(todo.date))}',
                   style: const TextStyle(
                     fontSize: 10,
                     color: Color.fromARGB(255, 121, 119, 119),
